@@ -70,8 +70,18 @@ func (r *reconciler) run(ctx context.Context) (reconcile.Result, error) {
 	if cont, err := r.ensureFinalizer(ctx); err != nil || !cont {
 		return reconcile.Result{}, err
 	}
+	if err := r.ensureSubnet(ctx); err != nil {
+		return reconcile.Result{}, err
+	}
 	if err := r.ensureK0sCluster(ctx); err != nil {
 		return reconcile.Result{}, err
+	}
+	ready, err := r.ensureMetalLB(ctx)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	if !ready {
+		return reconcile.Result{RequeueAfter: metalLBRequeue}, nil
 	}
 	return reconcile.Result{}, r.publishAccess(ctx)
 }

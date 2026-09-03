@@ -8,7 +8,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/docker/docker/api/types/network"
+	dockernetwork "github.com/docker/docker/api/types/network"
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -68,9 +68,9 @@ func (provider *k0sProvider) NextAvailableLBNetwork(ctx context.Context, c clien
 	return net.IPNet{}, errNoSubnetsAvailable
 }
 
-// networkSubnet returns the IPv4 subnet of the configured docker network.
+// networkSubnet returns the IPv4 subnet of the configured docker dockernetwork.
 func (provider *k0sProvider) networkSubnet(ctx context.Context) (net.IPNet, error) {
-	inspect, err := provider.docker.NetworkInspect(ctx, provider.opts.Network, network.InspectOptions{})
+	inspect, err := provider.docker.NetworkInspect(ctx, provider.opts.Network, dockernetwork.InspectOptions{})
 	if err != nil {
 		return net.IPNet{}, fmt.Errorf("inspecting docker network %q: %w", provider.opts.Network, err)
 	}
@@ -86,7 +86,7 @@ func (provider *k0sProvider) networkSubnet(ctx context.Context) (net.IPNet, erro
 	return net.IPNet{}, errIPv4NetworkNotFound
 }
 
-// calculateV4Subnet returns a /24 subnet of the given net.IPNet. Must be a /8 or /16 network.
+// calculateV4Subnet returns a /24 subnet of the given net.IPNet. Must be a /8 or /16 dockernetwork.
 func calculateV4Subnet(input net.IPNet, offset int) (net.IPNet, error) {
 	inputV4 := input.IP.To4()
 	ones, bits := input.Mask.Size()
@@ -141,11 +141,11 @@ func isIPv4(ipNet *net.IPNet) bool {
 
 // ensureNetwork creates the configured docker network if it does not exist.
 func (provider *k0sProvider) ensureNetwork(ctx context.Context) error {
-	if _, err := provider.docker.NetworkInspect(ctx, provider.opts.Network, network.InspectOptions{}); err == nil {
+	if _, err := provider.docker.NetworkInspect(ctx, provider.opts.Network, dockernetwork.InspectOptions{}); err == nil {
 		return nil
 	}
 
-	_, err := provider.docker.NetworkCreate(ctx, provider.opts.Network, network.CreateOptions{})
+	_, err := provider.docker.NetworkCreate(ctx, provider.opts.Network, dockernetwork.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("creating docker network %q: %w", provider.opts.Network, err)
 	}

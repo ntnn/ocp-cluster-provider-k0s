@@ -229,7 +229,7 @@ func (o *RunOptions) Run(ctx context.Context) error {
 		HealthProbeBindAddress: o.ProbeAddr,
 		PprofBindAddress:       o.PprofAddr,
 		LeaderElection:         o.EnableLeaderElection,
-		LeaderElectionID: "github.com/openmcp-project/cluster-provider-k0s",
+		LeaderElectionID:       "github.com/openmcp-project/cluster-provider-k0s",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
 		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly

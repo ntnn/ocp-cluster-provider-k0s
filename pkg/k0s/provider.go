@@ -144,7 +144,7 @@ spec:
 	config := &dockercontainer.Config{
 		Image:    provider.image(),
 		Hostname: cname,
-		Cmd:      []string{"k0s", "controller", "--enable-worker", "--no-taints"},
+		Cmd:      []string{"k0s", "controller", "--config=/etc/k0s/config.yaml", "--enable-worker", "--no-taints"},
 		Env:      []string{"K0S_CONFIG=" + k0sConfig},
 		Labels: map[string]string{
 			LabelApp:     LabelAppValue,

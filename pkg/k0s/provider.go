@@ -18,6 +18,7 @@ import (
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
 	"k8s.io/client-go/tools/clientcmd"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // DefaultVersion is the default k0s version.
@@ -26,6 +27,9 @@ const DefaultVersion = "v1.36.4+k0s.0"
 
 // imageRepo is the k0s container image repository.
 const imageRepo = "docker.io/k0sproject/k0s"
+
+// DefaultNetwork is the docker network created clusters join.
+const DefaultNetwork = "k0s"
 
 // Labels marking containers as managed by this provider.
 const (
@@ -53,6 +57,9 @@ func (o *Options) validate() {
 	if o.Version == "" {
 		o.Version = DefaultVersion
 	}
+	if o.Network == "" {
+		o.Network = DefaultNetwork
+	}
 	if o.Timeout == 0 {
 		o.Timeout = 5 * time.Minute
 	}
@@ -71,6 +78,9 @@ type Provider interface {
 
 	// KubeConfig retrieves the kubeconfig for the specified cluster name. The bool localhosts indicates whether the function returns a kubeconfig with the local host IP or the container IP.
 	Kubeconfig(ctx context.Context, name string, internal bool) (string, error)
+
+	// NextAvailableLBNetwork returns the next subnet of the docker network that no Cluster resource has been assigned yet.
+	NextAvailableLBNetwork(ctx context.Context, c client.Client) (net.IPNet, error)
 }
 
 // k0sProvider manages k0s clusters through the docker SDK.
@@ -108,6 +118,9 @@ func containerName(name string) string {
 // CreateCluster implements Provider.
 func (provider *k0sProvider) CreateCluster(ctx context.Context, name string) error {
 	if err := provider.ensureImage(ctx); err != nil {
+		return err
+	}
+	if err := provider.ensureNetwork(ctx); err != nil {
 		return err
 	}
 

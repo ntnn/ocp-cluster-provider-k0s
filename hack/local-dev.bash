@@ -103,7 +103,7 @@ spec:
             --volume /var/run/docker.sock:/var/run/host-docker.sock \
             --publish 6443 \
             --env K0S_CONFIG="$k0s_config" \
-            "$K0S_IMAGE" k0s controller --enable-worker --no-taints > /dev/null \
+            "$K0S_IMAGE" k0s controller --config=/etc/k0s/config.yaml --enable-worker --no-taints > /dev/null \
             || die "failed to create platform cluster"
     fi
 

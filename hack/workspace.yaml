@@ -8,6 +8,6 @@ metadata:
 spec:
   members:
     - kind: User
-      name: system:admin
+      name: kubernetes-admin
       roles:
         - admin

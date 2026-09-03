@@ -26,6 +26,7 @@ import (
 	"github.com/openmcp-project/cluster-provider-k0s/internal/controller/accessrequest"
 	"github.com/openmcp-project/cluster-provider-k0s/internal/controller/cluster"
 	"github.com/openmcp-project/cluster-provider-k0s/internal/controller/config"
+	"github.com/openmcp-project/cluster-provider-k0s/pkg/k0s"
 )
 
 var setupLog logging.Logger
@@ -252,10 +253,30 @@ func (o *RunOptions) Run(ctx context.Context) error {
 	if err := config.NewProviderConfigReconciler(o.PlatformCluster, o.ProviderName).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to add ProviderConfigReconciler to manager: %w", err)
 	}
-	if err := accessrequest.NewAccessRequestReconciler(o.PlatformCluster, o.ProviderName).SetupWithManager(mgr); err != nil {
+	k0sProvider, err := k0s.New(k0s.Options{
+		Version: os.Getenv("K0S_VERSION"),
+		Network: os.Getenv("K0S_NETWORK"),
+	})
+	if err != nil {
+		return fmt.Errorf("unable to create k0s provider: %w", err)
+	}
+	if err := accessrequest.NewAccessRequestReconciler(
+		o.PlatformCluster,
+		o.ProviderName,
+		o.Environment,
+		k0sProvider,
+	).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to add AccessRequestReconciler to manager: %w", err)
 	}
-	if err := cluster.NewClusterReconciler(o.PlatformCluster, o.ProviderName).SetupWithManager(mgr); err != nil {
+	clusterReconciler, err := cluster.NewClusterReconciler(cluster.Options{
+		PlatformCluster: o.PlatformCluster,
+		ProviderName:    o.ProviderName,
+		Provider:        k0sProvider,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to create ClusterReconciler: %w", err)
+	}
+	if err := clusterReconciler.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("unable to add ClusterReconciler to manager: %w", err)
 	}
 

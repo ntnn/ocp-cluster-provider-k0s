@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/network"
+	dockercontainer "github.com/docker/docker/api/types/container"
+	dockerfilters "github.com/docker/docker/api/types/filters"
+	dockerimage "github.com/docker/docker/api/types/image"
+	dockernetwork "github.com/docker/docker/api/types/network"
 	dockerclient "github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/stdcopy"
+	dockerstdcopy "github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -141,7 +141,7 @@ spec:
       - 127.0.0.1
 `, cname)
 
-	config := &container.Config{
+	config := &dockercontainer.Config{
 		Image:    provider.image(),
 		Hostname: cname,
 		Cmd:      []string{"k0s", "controller", "--config=/etc/k0s/config.yaml", "--enable-worker", "--no-taints"},
@@ -155,20 +155,20 @@ spec:
 			"/var/lib/k0s": {},
 		},
 	}
-	hostConfig := &container.HostConfig{
+	hostConfig := &dockercontainer.HostConfig{
 		Privileged: true,
 		// k0s requires a private cgroup namespace to manage sub-cgroups.
-		CgroupnsMode: container.CgroupnsModePrivate,
-		RestartPolicy: container.RestartPolicy{
-			Name: container.RestartPolicyUnlessStopped,
+		CgroupnsMode: dockercontainer.CgroupnsModePrivate,
+		RestartPolicy: dockercontainer.RestartPolicy{
+			Name: dockercontainer.RestartPolicyUnlessStopped,
 		},
 		PortBindings: nat.PortMap{
 			apiPort: []nat.PortBinding{{HostIP: "0.0.0.0", HostPort: strconv.Itoa(hostPort)}},
 		},
 	}
-	networkingConfig := &network.NetworkingConfig{}
+	networkingConfig := &dockernetwork.NetworkingConfig{}
 	if provider.opts.Network != "" {
-		networkingConfig.EndpointsConfig = map[string]*network.EndpointSettings{
+		networkingConfig.EndpointsConfig = map[string]*dockernetwork.EndpointSettings{
 			provider.opts.Network: {},
 		}
 	}
@@ -177,7 +177,7 @@ spec:
 	if err != nil {
 		return fmt.Errorf("creating container for k0s cluster %q: %w", name, err)
 	}
-	if err := provider.docker.ContainerStart(ctx, created.ID, container.StartOptions{}); err != nil {
+	if err := provider.docker.ContainerStart(ctx, created.ID, dockercontainer.StartOptions{}); err != nil {
 		return fmt.Errorf("starting container for k0s cluster %q: %w", name, err)
 	}
 	if err := provider.waitReady(ctx, created.ID, name); err != nil {
@@ -195,7 +195,7 @@ func (provider *k0sProvider) DeleteCluster(ctx context.Context, name string) err
 	if c == nil {
 		return nil
 	}
-	err = provider.docker.ContainerRemove(ctx, c.ID, container.RemoveOptions{
+	err = provider.docker.ContainerRemove(ctx, c.ID, dockercontainer.RemoveOptions{
 		Force:         true,
 		RemoveVolumes: true,
 	})
@@ -254,12 +254,12 @@ func (provider *k0sProvider) Kubeconfig(ctx context.Context, name string, intern
 
 // findContainer returns the container backing the named cluster, nil when it
 // does not exist.
-func (provider *k0sProvider) findContainer(ctx context.Context, name string) (*container.Summary, error) {
-	containers, err := provider.docker.ContainerList(ctx, container.ListOptions{
+func (provider *k0sProvider) findContainer(ctx context.Context, name string) (*dockercontainer.Summary, error) {
+	containers, err := provider.docker.ContainerList(ctx, dockercontainer.ListOptions{
 		All: true,
-		Filters: filters.NewArgs(
-			filters.Arg("label", LabelApp+"="+LabelAppValue),
-			filters.Arg("label", LabelCluster+"="+name),
+		Filters: dockerfilters.NewArgs(
+			dockerfilters.Arg("label", LabelApp+"="+LabelAppValue),
+			dockerfilters.Arg("label", LabelCluster+"="+name),
 		),
 	})
 	if err != nil {
@@ -277,7 +277,7 @@ func (provider *k0sProvider) ensureImage(ctx context.Context) error {
 	if _, err := provider.docker.ImageInspect(ctx, ref); err == nil {
 		return nil
 	}
-	reader, err := provider.docker.ImagePull(ctx, ref, image.PullOptions{})
+	reader, err := provider.docker.ImagePull(ctx, ref, dockerimage.PullOptions{})
 	if err != nil {
 		return fmt.Errorf("pulling image %q: %w", ref, err)
 	}
@@ -311,7 +311,7 @@ func (provider *k0sProvider) waitReady(ctx context.Context, containerID, name st
 // exec runs a command in the container and returns its stdout, failing on
 // non-zero exit codes.
 func (provider *k0sProvider) exec(ctx context.Context, containerID string, cmd []string) (string, error) {
-	execCreate, err := provider.docker.ContainerExecCreate(ctx, containerID, container.ExecOptions{
+	execCreate, err := provider.docker.ContainerExecCreate(ctx, containerID, dockercontainer.ExecOptions{
 		Cmd:          cmd,
 		AttachStdout: true,
 		AttachStderr: true,
@@ -319,14 +319,14 @@ func (provider *k0sProvider) exec(ctx context.Context, containerID string, cmd [
 	if err != nil {
 		return "", fmt.Errorf("creating exec: %w", err)
 	}
-	attach, err := provider.docker.ContainerExecAttach(ctx, execCreate.ID, container.ExecStartOptions{})
+	attach, err := provider.docker.ContainerExecAttach(ctx, execCreate.ID, dockercontainer.ExecStartOptions{})
 	if err != nil {
 		return "", fmt.Errorf("attaching exec: %w", err)
 	}
 	defer attach.Close()
 
 	var stdout, stderr bytes.Buffer
-	if _, err := stdcopy.StdCopy(&stdout, &stderr, attach.Reader); err != nil {
+	if _, err := dockerstdcopy.StdCopy(&stdout, &stderr, attach.Reader); err != nil {
 		return "", fmt.Errorf("reading exec output: %w", err)
 	}
 	inspect, err := provider.docker.ContainerExecInspect(ctx, execCreate.ID)

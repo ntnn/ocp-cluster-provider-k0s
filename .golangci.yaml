@@ -11,6 +11,7 @@ linters:
     - goconst
     - gocyclo
     - govet
+    - importas
     - ineffassign
     - misspell
     - nakedret
@@ -24,6 +25,12 @@ linters:
     revive:
       rules:
         - name: comment-spacings
+    importas:
+      no-unaliased: true
+      alias:
+        # ensure docker SDK packages are prefixed with docker
+        - pkg: github.com/docker/docker/(?:[\w]+/)*([\w]+)
+          alias: docker${1}
   exclusions:
     generated: lax
     presets:

@@ -1,4 +1,3 @@
-//go:generate opencontrolplane-gen
 package app
 
 import (
@@ -17,10 +16,8 @@ import (
 
 	"github.com/openmcp-project/openmcp-operator/lib/clusteraccess"
 
-	// opencontrolplane-gen:replace github.com/openmcp-project/cluster-provider-template=MODULE
-	"github.com/openmcp-project/cluster-provider-template/api/crds"
-	// opencontrolplane-gen:replace github.com/openmcp-project/cluster-provider-template=MODULE
-	"github.com/openmcp-project/cluster-provider-template/api/providerscheme"
+	"github.com/openmcp-project/cluster-provider-k0s/api/crds"
+	"github.com/openmcp-project/cluster-provider-k0s/api/providerscheme"
 )
 
 func NewInitCommand(so *SharedOptions) *cobra.Command {

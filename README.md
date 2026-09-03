@@ -1,10 +1,10 @@
-[![REUSE status](https://api.reuse.software/badge/github.com/openmcp-project/cluster-provider-k3d)](https://api.reuse.software/info/github.com/openmcp-project/cluster-provider-k3d)
+[![REUSE status](https://api.reuse.software/badge/github.com/openmcp-project/cluster-provider-k0s)](https://api.reuse.software/info/github.com/openmcp-project/cluster-provider-k0s)
 
-# cluster-provider-k3d
+# cluster-provider-k0s
 
 ## About this project
 
-A cluster provider for [OpenMCP](https://github.com/openmcp-project/openmcp-operator) that uses [k3d](https://k3d.io) to provision and manage Kubernetes clusters. This provider enables you to create and manage multiple Kubernetes clusters running as Docker containers, making it ideal for:
+A cluster provider for [OpenMCP](https://github.com/openmcp-project/openmcp-operator) that uses [k0s](https://k0sproject.io) to provision and manage Kubernetes clusters. This provider enables you to create and manage multiple Kubernetes clusters running as Docker containers, making it ideal for:
 
 - **Local Development**: Quickly spin up multiple clusters for testing multi-cluster scenarios
 - **E2E Testing**: Automated testing of multi-cluster applications and operators
@@ -14,23 +14,23 @@ A cluster provider for [OpenMCP](https://github.com/openmcp-project/openmcp-oper
 
 ### Local Development
 
-Prerequisites: docker, [k3d](https://k3d.io) v5, kubectl, [task](https://taskfile.dev), go.
+Prerequisites: docker, kubectl, [task](https://taskfile.dev), go, [crane](https://github.com/google/go-containerregistry/tree/main/cmd/crane).
 
-Deploy - creates a k3d platform cluster, builds the provider image, deploys the [openmcp-operator](https://github.com/openmcp-project/openmcp-operator), this provider and the [ocpctl](https://github.com/openmcp-project/ocpctl)-default service providers (crossplane, flux, kro, ocm, gateway), waits for the onboarding cluster (the first provisioned k3d cluster):
+Deploy - creates a k0s platform cluster, builds the provider image, deploys the [openmcp-operator](https://github.com/openmcp-project/openmcp-operator), this provider and the [ocpctl](https://github.com/openmcp-project/ocpctl)-default service providers (crossplane, flux, kro, ocm, gateway), waits for the onboarding cluster (the first provisioned k0s cluster):
 
 ```shell
-./hack/local-dev.sh deploy
+./hack/local-dev.bash deploy
 ```
 
-Tear down, deletes **all** k3d clusters, including provisioned ones:
+Tear down, deletes **all** k0s clusters, including provisioned ones:
 
 ```shell
-./hack/local-dev.sh reset
+./hack/local-dev.bash reset
 ```
 
 ## Requesting a cluster
 
-Create a `Cluster` resource with the `k3d` profile on the platform cluster:
+Create a `Cluster` resource with the `k0s` profile on the platform cluster:
 
 ```yaml
 apiVersion: clusters.openmcp.cloud/v1alpha1
@@ -40,7 +40,7 @@ metadata:
   namespace: default
 spec:
   kubernetes: {}
-  profile: k3d
+  profile: k0s
   purposes:
     - workload
   tenancy: Exclusive
@@ -50,8 +50,8 @@ spec:
 kubectl --kubeconfig ./platform.kubeconfig apply -f ./hack/cluster.yaml
 ```
 
-The k3d cluster is named `my-cluster-<uid-prefix>`.
-The name can be overridden with the `k3d.cluster.open-control-plane.io/name` annotation.
+The k0s cluster is named `my-cluster-<uid-prefix>`.
+The name can be overridden with the `k0s.cluster.open-control-plane.io/name` annotation.
 
 ```shell
 kubectl wait --for='jsonpath={.status.phase}=Ready' cluster/my-cluster --timeout=120s
@@ -84,7 +84,7 @@ spec:
 kubectl apply -f ./hack/accessrequest.yaml
 ```
 
-cluster-provider-k3d currently only provides admin service accounts.
+cluster-provider-k0s currently only provides admin service accounts.
 
 Once granted, the kubeconfig is in a secret next to the AccessRequest:
 
@@ -93,16 +93,19 @@ kubectl wait --for='jsonpath={.status.phase}=Granted' accessrequest/my-cluster-a
 kubectl get secret my-cluster-admin.kubeconfig -o jsonpath='{.data.kubeconfig}' | base64 -d > my-cluster.kubeconfig
 ```
 
-The kubeconfig points at the cluster's serverlb node name on the shared docker network — reachable from pods on the platform cluster, not from the host.
+The kubeconfig points at the cluster's container name on the shared docker network — reachable from pods on the platform cluster, not from the host.
 
 ### Access from the host
 
-The provisioned clusters are ordinary k3d clusters on the host's docker daemon:
+The provisioned clusters are ordinary docker containers on the host's daemon, with the API server published on a random host port:
 
 ```shell
-k3d cluster list
-k3d kubeconfig write <k3dClusterName>   # name from .status.providerStatus.k3dClusterName
+docker ps --filter label=app=cluster-provider-k0s
+docker port k0s-<k0sClusterName> 6443/tcp   # name from .status.providerStatus.k0sClusterName
+docker exec k0s-<k0sClusterName> k0s kubeconfig admin   # rewrite server to https://127.0.0.1:<published port>
 ```
+
+`./hack/local-dev.bash kubeconfigs` writes ready-to-use kubeconfigs for the platform and onboarding clusters to the current directory.
 
 ### Deploy an OpenMCP managed cluster
 
@@ -120,7 +123,7 @@ metadata:
 spec:
   members:
     - kind: User
-      name: system:admin
+      name: kubernetes-admin
       roles:
         - admin
 ```
@@ -142,7 +145,7 @@ metadata:
 spec:
   members:
     - kind: User
-      name: system:admin
+      name: kubernetes-admin
       roles:
         - admin
 ```
@@ -177,13 +180,31 @@ spec:
         name: cluster-admin
 ```
 
+```shell
+kubectl --kubeconfig onboarding.kubeconfig apply -f ./hack/control-plane.yaml
+```
+
+To access the cluster get the name:
+
+```shell
+> docker ps --filter name=k0s-mcp
+098f28e7cf6d   k0sproject/k0s:v1.36.4-k0s.0   "/sbin/tini -- /entr…"   3 minutes ago   Up 3 minutes   0.0.0.0:36895->6443/tcp   k0s-mcp-p42kkeum-f07932c5
+```
+
+And build a kubeconfig, replacing `POD` and `PORT` with the `docker ps` output:
+
+```shell
+docker exec "POD" k0s kubeconfig admin | sed 's#server: https://.*#server: https://127.0.0.1:PORT#g' > control-plane.kubeconfig
+```
+
 ## Configuration
 
-k3d supports a [config file](https://k3d.io/stable/usage/configfile/) in `K3D_CONFIG_FILE` to customize clusters.
+The provider reads the following environment variables:
 
-If present the cluster-provider-k3d uses it to create clusters, but
-name, wait behaviour and kubeconfig handling are always overridden to
-the values openmcp/the provider expect.
+- `K0S_VERSION`: the k0s version to run (default: the version pinned in `pkg/k0s`)
+- `K0S_NETWORK`: the docker network created clusters join (default: `k0s`); consumers on that network reach the API servers by container name
+
+Cluster name, readiness waiting and kubeconfig handling are always controlled by the provider.
 
 ## Support, Feedback, Contributing
 

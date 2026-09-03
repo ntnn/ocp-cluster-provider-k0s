@@ -46,9 +46,9 @@ tasks:
       MODULE: "{{ .module }}"
     cmds:
       - DRY_RUN={{.dryrun}} go generate ./...
-      - cmd: mv ./cmd/cluster-provider-template ./cmd/${CMD_FOLDER}
+      - cmd: mv ./cmd/cluster-provider-k0s ./cmd/${CMD_FOLDER}
         if: '{{ eq .dryrun "false" }}'
       - cmd: go mod edit -module {{.module}}
         if: '{{ eq .dryrun "false" }}'
-      - cmd: sed 's/cluster-provider-template/cluster-provider-{{.name}}/g' Taskfile.yaml
+      - cmd: sed 's/cluster-provider-k0s/cluster-provider-{{.name}}/g' Taskfile.yaml
         if: '{{ eq .dryrun "false" }}'

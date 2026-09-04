@@ -197,6 +197,55 @@ And build a kubeconfig, replacing `POD` and `PORT` with the `docker ps` output:
 docker exec "POD" k0s kubeconfig admin | sed 's#server: https://.*#server: https://127.0.0.1:PORT#g' > control-plane.kubeconfig
 ```
 
+### Install Flux and deploy podinfo
+
+The [flux service provider](https://github.com/openmcp-project/service-provider-flux) installs Flux into a ControlPlane:
+
+```yaml
+apiVersion: flux.services.open-control-plane.io/v1alpha1
+kind: Flux
+metadata:
+  name: my-controlplane
+  namespace: project-platform-team--ws-dev
+spec:
+  version: "2.8.3"
+```
+
+```shell
+kubectl --kubeconfig onboarding.kubeconfig apply -f ./hack/flux.yaml
+```
+
+With Flux running in the control plane, deploy [podinfo](https://github.com/stefanprodan/podinfo) via a `HelmRepository` and `HelmRelease`:
+
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: podinfo
+  namespace: default
+spec:
+  interval: 10m
+  url: https://stefanprodan.github.io/podinfo
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: podinfo
+  namespace: default
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: podinfo
+      sourceRef:
+        kind: HelmRepository
+        name: podinfo
+```
+
+```shell
+kubectl --kubeconfig control-plane.kubeconfig apply -f ./hack/podinfo.yaml
+```
+
 ## Configuration
 
 The provider reads the following environment variables:

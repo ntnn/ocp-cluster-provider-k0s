@@ -22,6 +22,7 @@ import (
 	commonapi "github.com/openmcp-project/openmcp-operator/api/common"
 
 	"github.com/openmcp-project/cluster-provider-k0s/api/v1alpha1"
+	"github.com/openmcp-project/cluster-provider-k0s/pkg/k0s"
 )
 
 // foreignFinalizerRequeue is the poll interval while waiting for other
@@ -152,7 +153,9 @@ func (r *reconciler) ensureK0sCluster(ctx context.Context) error {
 	}
 	if !exists {
 		// CreateCluster blocks until the cluster is ready.
-		if err := r.opts.Provider.CreateCluster(ctx, name); err != nil {
+		if err := r.opts.Provider.CreateCluster(ctx, name, k0s.CreateClusterOptions{
+			DNSAliases: k0s.DNSAliasesOf(r.cluster),
+		}); err != nil {
 			r.setConditionK0sReady(false, "ClusterCreationFailed", err.Error())
 			return err
 		}

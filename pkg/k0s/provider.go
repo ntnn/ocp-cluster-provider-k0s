@@ -17,6 +17,8 @@ import (
 	dockerclient "github.com/docker/docker/client"
 	dockerstdcopy "github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
+	"github.com/openmcp-project/cluster-provider-k0s/api/v1alpha1"
+	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -65,10 +67,25 @@ func (o *Options) validate() {
 	}
 }
 
+// DNSAliasesOf returns the aliases a Cluster carries via v1alpha1.DNSAliasesAnnotation.
+func DNSAliasesOf(cluster *clustersv1alpha1.Cluster) []string {
+	v := cluster.GetAnnotations()[v1alpha1.DNSAliasesAnnotation]
+	if v == "" {
+		return nil
+	}
+	return strings.Split(v, ",")
+}
+
+// CreateClusterOptions configures the creation of a single k0s cluster.
+type CreateClusterOptions struct {
+	// DNSAliases are fully-qualified hostnames assigned to the container on the docker network.
+	DNSAliases []string
+}
+
 // Provider manages k0s clusters.
 type Provider interface {
 	// CreateCluster creates a new Kubernetes cluster with the given name.
-	CreateCluster(ctx context.Context, name string) error
+	CreateCluster(ctx context.Context, name string, opts CreateClusterOptions) error
 
 	// DeleteCluster deletes the Kubernetes cluster with the given name.
 	DeleteCluster(ctx context.Context, name string) error
@@ -116,7 +133,7 @@ func containerName(name string) string {
 }
 
 // CreateCluster implements Provider.
-func (provider *k0sProvider) CreateCluster(ctx context.Context, name string) error {
+func (provider *k0sProvider) CreateCluster(ctx context.Context, name string, opts CreateClusterOptions) error {
 	if err := provider.ensureImage(ctx); err != nil {
 		return err
 	}
@@ -169,7 +186,9 @@ spec:
 	networkingConfig := &dockernetwork.NetworkingConfig{}
 	if provider.opts.Network != "" {
 		networkingConfig.EndpointsConfig = map[string]*dockernetwork.EndpointSettings{
-			provider.opts.Network: {},
+			provider.opts.Network: {
+				Aliases: opts.DNSAliases,
+			},
 		}
 	}
 

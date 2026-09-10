@@ -37,4 +37,7 @@ var (
 
 	// AddToScheme adds the types in this group-version to the given scheme.
 	AddToScheme = SchemeBuilder.AddToScheme
+
+	// DNSAliasesAnnotation carries the comma-separated, fully-qualified hostnames to assign to the cluster's container on the docker network.
+	DNSAliasesAnnotation = GroupVersion.Group + "/dns-aliases"
 )

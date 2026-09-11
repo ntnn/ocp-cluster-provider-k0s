@@ -269,9 +269,10 @@ func (o *RunOptions) Run(ctx context.Context) error {
 		return fmt.Errorf("unable to add AccessRequestReconciler to manager: %w", err)
 	}
 	clusterReconciler, err := cluster.NewClusterReconciler(cluster.Options{
-		PlatformCluster: o.PlatformCluster,
-		ProviderName:    o.ProviderName,
-		Provider:        k0sProvider,
+		PlatformCluster:   o.PlatformCluster,
+		ProviderName:      o.ProviderName,
+		ProviderNamespace: providerSystemNamespace,
+		Provider:          k0sProvider,
 	})
 	if err != nil {
 		return fmt.Errorf("unable to create ClusterReconciler: %w", err)

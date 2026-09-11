@@ -17,8 +17,8 @@ import (
 	dockerclient "github.com/docker/docker/client"
 	dockerstdcopy "github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
-	"github.com/openmcp-project/cluster-provider-k0s/api/v1alpha1"
-	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -67,13 +67,26 @@ func (o *Options) validate() {
 	}
 }
 
-// DNSAliasesOf returns the aliases a Cluster carries via v1alpha1.DNSAliasesAnnotation.
-func DNSAliasesOf(cluster *clustersv1alpha1.Cluster) []string {
-	v := cluster.GetAnnotations()[v1alpha1.DNSAliasesAnnotation]
-	if v == "" {
-		return nil
+// DNSAliasesConfigMap is the ConfigMap in the provider namespace mapping
+// cluster names to the comma-separated hostnames assigned to their containers
+// on the docker network.
+const DNSAliasesConfigMap = "k0s-dns-aliases"
+
+// DNSAliasesOf returns the aliases registered for the named cluster in
+// DNSAliasesConfigMap, nil when absent.
+func DNSAliasesOf(ctx context.Context, c client.Client, namespace, clusterName string) ([]string, error) {
+	cm := &corev1.ConfigMap{}
+	if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: DNSAliasesConfigMap}, cm); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("getting config map %q: %w", DNSAliasesConfigMap, err)
 	}
-	return strings.Split(v, ",")
+	v := cm.Data[clusterName]
+	if v == "" {
+		return nil, nil
+	}
+	return strings.Split(v, ","), nil
 }
 
 // CreateClusterOptions configures the creation of a single k0s cluster.

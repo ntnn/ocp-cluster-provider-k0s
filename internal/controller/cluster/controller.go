@@ -36,6 +36,8 @@ type Options struct {
 	// ProviderName identifies this provider deployment; Clusters whose
 	// ClusterProfile references it are reconciled.
 	ProviderName string
+	// ProviderNamespace is the provider's namespace, used to read shared platform resources.
+	ProviderNamespace string
 	// Provider manages the backing k0s clusters.
 	Provider k0s.Provider
 }
@@ -46,6 +48,9 @@ func (o *Options) validate() error {
 	}
 	if o.ProviderName == "" {
 		return errors.New("ProviderName is required")
+	}
+	if o.ProviderNamespace == "" {
+		return errors.New("ProviderNamespace is required")
 	}
 	if o.Provider == nil {
 		return errors.New("provider is required")

@@ -20,6 +20,7 @@ import (
 
 	clustersv1alpha1 "github.com/openmcp-project/openmcp-operator/api/clusters/v1alpha1"
 	commonapi "github.com/openmcp-project/openmcp-operator/api/common"
+	apiconst "github.com/openmcp-project/openmcp-operator/api/constants"
 
 	"github.com/openmcp-project/cluster-provider-k0s/api/v1alpha1"
 	"github.com/openmcp-project/cluster-provider-k0s/pkg/k0s"
@@ -153,8 +154,13 @@ func (r *reconciler) ensureK0sCluster(ctx context.Context) error {
 	}
 	if !exists {
 		// CreateCluster blocks until the cluster is ready.
+		aliases, err := k0s.DNSAliasesOf(ctx, r.opts.PlatformCluster.Client(), r.opts.ProviderNamespace, controlPlaneName(r.cluster))
+		if err != nil {
+			r.setConditionK0sReady(false, "ClusterLookupFailed", err.Error())
+			return err
+		}
 		if err := r.opts.Provider.CreateCluster(ctx, name, k0s.CreateClusterOptions{
-			DNSAliases: k0s.DNSAliasesOf(r.cluster),
+			DNSAliases: aliases,
 		}); err != nil {
 			r.setConditionK0sReady(false, "ClusterCreationFailed", err.Error())
 			return err
@@ -163,6 +169,12 @@ func (r *reconciler) ensureK0sCluster(ctx context.Context) error {
 	}
 	r.setConditionK0sReady(true, "ClusterExists", "")
 	return nil
+}
+
+// controlPlaneName returns the ControlPlane name the Cluster belongs to, from
+// the metadata label the openmcp-operator copies onto MCP clusters. Empty when absent.
+func controlPlaneName(cluster *clustersv1alpha1.Cluster) string {
+	return cluster.GetLabels()[apiconst.MetadataAnnotationLabelPrefix+"cp-name"]
 }
 
 // publishAccess writes the provider status and the external and internal API

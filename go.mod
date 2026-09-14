@@ -1,6 +1,6 @@
 module github.com/openmcp-project/cluster-provider-k0s
 
-go 1.26.5
+go 1.27.1
 
 require (
 	github.com/docker/docker v28.5.2+incompatible

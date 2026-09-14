@@ -178,6 +178,9 @@ func controlPlaneName(cluster *clustersv1alpha1.Cluster) string {
 func (r *reconciler) clusterOptions(ctx context.Context) (v1alpha1.ClusterOptions, error) {
 	name := controlPlaneName(r.cluster)
 	opts := &v1alpha1.ClusterOptions{}
+	if name == "" {
+		return *opts, nil
+	}
 	if err := r.opts.PlatformCluster.Client().Get(ctx, client.ObjectKey{Name: name}, opts); err != nil {
 		if apierrors.IsNotFound(err) {
 			return *opts, nil

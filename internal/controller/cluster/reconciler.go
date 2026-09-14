@@ -23,7 +23,6 @@ import (
 	apiconst "github.com/openmcp-project/openmcp-operator/api/constants"
 
 	"github.com/openmcp-project/cluster-provider-k0s/api/v1alpha1"
-	"github.com/openmcp-project/cluster-provider-k0s/pkg/k0s"
 )
 
 // foreignFinalizerRequeue is the poll interval while waiting for other
@@ -154,14 +153,12 @@ func (r *reconciler) ensureK0sCluster(ctx context.Context) error {
 	}
 	if !exists {
 		// CreateCluster blocks until the cluster is ready.
-		aliases, err := k0s.DNSAliasesOf(ctx, r.opts.PlatformCluster.Client(), r.opts.ProviderNamespace, controlPlaneName(r.cluster))
+		clusterOpts, err := r.clusterOptions(ctx)
 		if err != nil {
 			r.setConditionK0sReady(false, "ClusterLookupFailed", err.Error())
 			return err
 		}
-		if err := r.opts.Provider.CreateCluster(ctx, name, k0s.CreateClusterOptions{
-			DNSAliases: aliases,
-		}); err != nil {
+		if err := r.opts.Provider.CreateCluster(ctx, name, clusterOpts); err != nil {
 			r.setConditionK0sReady(false, "ClusterCreationFailed", err.Error())
 			return err
 		}
@@ -175,6 +172,19 @@ func (r *reconciler) ensureK0sCluster(ctx context.Context) error {
 // the metadata label the openmcp-operator copies onto MCP clusters. Empty when absent.
 func controlPlaneName(cluster *clustersv1alpha1.Cluster) string {
 	return cluster.GetLabels()[apiconst.MetadataAnnotationLabelPrefix+"cp-name"]
+}
+
+// clusterOptions returns the ClusterOptions named after the Cluster's ControlPlane.
+func (r *reconciler) clusterOptions(ctx context.Context) (v1alpha1.ClusterOptions, error) {
+	name := controlPlaneName(r.cluster)
+	opts := &v1alpha1.ClusterOptions{}
+	if err := r.opts.PlatformCluster.Client().Get(ctx, client.ObjectKey{Name: name}, opts); err != nil {
+		if apierrors.IsNotFound(err) {
+			return *opts, nil
+		}
+		return *opts, fmt.Errorf("getting cluster options %q: %w", name, err)
+	}
+	return *opts, nil
 }
 
 // publishAccess writes the provider status and the external and internal API

@@ -17,8 +17,7 @@ import (
 	dockerclient "github.com/docker/docker/client"
 	dockerstdcopy "github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
-	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	v1alpha1 "github.com/openmcp-project/cluster-provider-k0s/api/v1alpha1"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -67,38 +66,11 @@ func (o *Options) validate() {
 	}
 }
 
-// DNSAliasesConfigMap is the ConfigMap in the provider namespace mapping
-// cluster names to the comma-separated hostnames assigned to their containers
-// on the docker network.
-const DNSAliasesConfigMap = "k0s-dns-aliases"
-
-// DNSAliasesOf returns the aliases registered for the named cluster in
-// DNSAliasesConfigMap, nil when absent.
-func DNSAliasesOf(ctx context.Context, c client.Client, namespace, clusterName string) ([]string, error) {
-	cm := &corev1.ConfigMap{}
-	if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: DNSAliasesConfigMap}, cm); err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("getting config map %q: %w", DNSAliasesConfigMap, err)
-	}
-	v := cm.Data[clusterName]
-	if v == "" {
-		return nil, nil
-	}
-	return strings.Split(v, ","), nil
-}
-
-// CreateClusterOptions configures the creation of a single k0s cluster.
-type CreateClusterOptions struct {
-	// DNSAliases are fully-qualified hostnames assigned to the container on the docker network.
-	DNSAliases []string
-}
-
 // Provider manages k0s clusters.
 type Provider interface {
 	// CreateCluster creates a new Kubernetes cluster with the given name.
-	CreateCluster(ctx context.Context, name string, opts CreateClusterOptions) error
+	// opts carries per-cluster options, nil when none are set.
+	CreateCluster(ctx context.Context, name string, opts v1alpha1.ClusterOptions) error
 
 	// DeleteCluster deletes the Kubernetes cluster with the given name.
 	DeleteCluster(ctx context.Context, name string) error
@@ -146,7 +118,7 @@ func containerName(name string) string {
 }
 
 // CreateCluster implements Provider.
-func (provider *k0sProvider) CreateCluster(ctx context.Context, name string, opts CreateClusterOptions) error {
+func (provider *k0sProvider) CreateCluster(ctx context.Context, name string, opts v1alpha1.ClusterOptions) error {
 	if err := provider.ensureImage(ctx); err != nil {
 		return err
 	}
@@ -198,10 +170,10 @@ spec:
 	}
 	networkingConfig := &dockernetwork.NetworkingConfig{}
 	if provider.opts.Network != "" {
+		endpoint := &dockernetwork.EndpointSettings{}
+		endpoint.Aliases = opts.Spec.Aliases
 		networkingConfig.EndpointsConfig = map[string]*dockernetwork.EndpointSettings{
-			provider.opts.Network: {
-				Aliases: opts.DNSAliases,
-			},
+			provider.opts.Network: endpoint,
 		}
 	}
 
